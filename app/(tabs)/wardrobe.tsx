@@ -13,12 +13,13 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Body, Heading, IconButton, Screen } from '@/components/ui';
+import { AccentRule, Body, Heading, IconButton, Screen } from '@/components/ui';
 import {
   categories,
   colors,
   filterToCategory,
   fonts,
+  radii,
   spacing,
   type CategoryFilter,
   type GarmentCategory,
@@ -69,8 +70,11 @@ export default function WardrobeScreen() {
       </Modal>
 
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
-        <Heading>Wardrobe</Heading>
-        <IconButton name="add" onPress={onAdd} size={28} color={colors.olive} />
+        <View>
+          <Heading>Wardrobe</Heading>
+          <AccentRule />
+        </View>
+        <IconButton name="add" onPress={onAdd} size={26} color={colors.olive} />
       </View>
 
       <View style={styles.tabs}>
@@ -187,17 +191,20 @@ const styles = StyleSheet.create({
     width: TILE,
     marginBottom: GAP,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.stone,
-    backgroundColor: colors.ivory,
+    borderColor: colors.mist,
+    borderRadius: radii.md,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.35)',
   },
   tileSelected: {
     borderColor: colors.olive,
     borderWidth: 1.5,
+    backgroundColor: colors.oliveSoft,
   },
   tileImageWrap: {
     width: '100%',
     height: TILE * 1.15,
-    backgroundColor: '#EFEBE4',
+    backgroundColor: colors.linen,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 8,

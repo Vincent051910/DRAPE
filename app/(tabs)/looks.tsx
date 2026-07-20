@@ -8,13 +8,14 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Body, Heading, Screen } from '@/components/ui';
-import { colors, fonts, spacing } from '@/constants/theme';
+import { AccentRule, Body, Heading, Screen, SecondaryButton } from '@/components/ui';
+import { colors, fonts, radii, spacing } from '@/constants/theme';
 import { useApp } from '@/context/AppContext';
 
-const GAP = 10;
+const GAP = 12;
 const COLS = 2;
 const TILE = (Dimensions.get('window').width - spacing.lg * 2 - GAP) / COLS;
 
@@ -26,7 +27,10 @@ export default function LooksScreen() {
   return (
     <Screen padded={false} style={styles.screen}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
-        <Heading>Looks</Heading>
+        <View>
+          <Heading>Looks</Heading>
+          <AccentRule />
+        </View>
         <Body muted style={styles.count}>
           {data.looks.length} saved
         </Body>
@@ -40,34 +44,43 @@ export default function LooksScreen() {
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <View style={styles.empty}>
+            <View style={styles.emptyMark} />
             <Body muted style={{ textAlign: 'center' }}>
               Generated looks will appear here.
             </Body>
+            <SecondaryButton
+              label="Browse examples"
+              icon="images-outline"
+              onPress={() => router.push('/examples')}
+              style={styles.examplesLink}
+            />
           </View>
         }
-        renderItem={({ item }) => (
-          <Pressable
-            onPress={() =>
-              router.push({
-                pathname: '/result',
-                params: { uri: item.resultUri, lookId: item.id, mood: item.mood },
-              })
-            }
-            onLongPress={() =>
-              Alert.alert('Delete look?', undefined, [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Delete',
-                  style: 'destructive',
-                  onPress: () => removeLook(item.id),
-                },
-              ])
-            }
-            style={styles.tile}
-          >
-            <Image source={{ uri: item.resultUri }} style={styles.tileImage} />
-            <Body style={styles.tileLabel}>{item.mood}</Body>
-          </Pressable>
+        renderItem={({ item, index }) => (
+          <Animated.View entering={FadeInDown.delay(Math.min(index, 6) * 50).duration(400)}>
+            <Pressable
+              onPress={() =>
+                router.push({
+                  pathname: '/result',
+                  params: { uri: item.resultUri, lookId: item.id, mood: item.mood },
+                })
+              }
+              onLongPress={() =>
+                Alert.alert('Delete look?', undefined, [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: () => removeLook(item.id),
+                  },
+                ])
+              }
+              style={styles.tile}
+            >
+              <Image source={{ uri: item.resultUri }} style={styles.tileImage} />
+              <Body style={styles.tileLabel}>{item.mood}</Body>
+            </Pressable>
+          </Animated.View>
         )}
       />
     </Screen>
@@ -79,11 +92,13 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: spacing.lg,
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
   },
   count: {
     fontSize: 13,
+    marginTop: 8,
+    letterSpacing: 0.3,
   },
   list: {
     padding: spacing.lg,
@@ -93,6 +108,17 @@ const styles = StyleSheet.create({
   empty: {
     paddingTop: spacing.xxl,
     paddingHorizontal: spacing.xl,
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  emptyMark: {
+    width: 32,
+    height: 1.5,
+    backgroundColor: colors.olive,
+  },
+  examplesLink: {
+    marginTop: spacing.sm,
+    alignSelf: 'stretch',
   },
   tile: {
     width: TILE,
@@ -101,13 +127,15 @@ const styles = StyleSheet.create({
   tileImage: {
     width: '100%',
     height: TILE * 1.35,
-    backgroundColor: '#EFEBE4',
+    backgroundColor: colors.linen,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.stone,
+    borderColor: colors.mist,
+    borderRadius: radii.md,
   },
   tileLabel: {
-    marginTop: 6,
+    marginTop: 8,
     fontSize: 12,
     fontFamily: fonts.bodyMedium,
+    letterSpacing: 0.3,
   },
 });

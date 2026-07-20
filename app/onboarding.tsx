@@ -4,7 +4,7 @@ import { ImageBackground, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Body, BrandTitle, PrimaryButton } from '@/components/ui';
+import { AccentRule, Body, BrandTitle, PrimaryButton } from '@/components/ui';
 import { colors, fonts, spacing } from '@/constants/theme';
 import { useApp } from '@/context/AppContext';
 
@@ -25,23 +25,33 @@ export default function OnboardingScreen() {
     <View style={styles.root}>
       <ImageBackground source={{ uri: HERO }} style={StyleSheet.absoluteFill} resizeMode="cover">
         <LinearGradient
-          colors={['rgba(26,26,24,0.15)', 'rgba(26,26,24,0.72)']}
+          colors={['rgba(26,26,24,0.2)', 'rgba(26,26,24,0.45)', 'rgba(26,26,24,0.82)']}
+          locations={[0, 0.45, 1]}
           style={StyleSheet.absoluteFill}
         />
       </ImageBackground>
 
-      <View style={[styles.content, { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.lg }]}>
-        <Animated.View entering={FadeIn.duration(800)}>
-          <BrandTitle color={colors.ivory} size={56} />
+      <View
+        style={[
+          styles.content,
+          {
+            paddingTop: insets.top + spacing.xl,
+            paddingBottom: insets.bottom + spacing.lg,
+          },
+        ]}
+      >
+        <Animated.View entering={FadeIn.duration(900)} style={styles.brandBlock}>
+          <BrandTitle color={colors.ivory} size={58} />
+          <AccentRule light />
         </Animated.View>
 
         <View style={styles.bottom}>
-          <Animated.View entering={FadeInDown.delay(200).duration(700)}>
+          <Animated.View entering={FadeInDown.delay(220).duration(750)}>
             <Body style={styles.tagline}>
               Your likeness. Your clothes. One polished look.
             </Body>
           </Animated.View>
-          <Animated.View entering={FadeInDown.delay(400).duration(700)}>
+          <Animated.View entering={FadeInDown.delay(420).duration(750)}>
             <PrimaryButton label="Create your look" onPress={onStart} />
           </Animated.View>
         </View>
@@ -60,15 +70,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     justifyContent: 'space-between',
   },
+  brandBlock: {
+    marginTop: spacing.lg,
+  },
   bottom: {
     gap: spacing.lg,
   },
   tagline: {
     color: colors.ivory,
-    fontFamily: fonts.body,
-    fontSize: 17,
-    lineHeight: 26,
-    maxWidth: 280,
+    fontFamily: fonts.displayRegular,
+    fontSize: 22,
+    lineHeight: 32,
+    maxWidth: 300,
+    letterSpacing: 0.2,
     marginBottom: spacing.sm,
   },
 });

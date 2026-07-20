@@ -9,6 +9,7 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.drapeapp.app",
       "infoPlist": {
         "NSCameraUsageDescription": "DRAPE needs the camera to capture your likeness and clothing.",
         "NSPhotoLibraryUsageDescription": "DRAPE needs photo access to import likeness and clothing images.",
@@ -16,8 +17,9 @@
       }
     },
     "android": {
+      "package": "com.drapeapp.app",
       "adaptiveIcon": {
-        "backgroundColor": "#F7F4EF",
+        "backgroundColor": "#ECDDBE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -42,7 +44,7 @@
         {
           "image": "./assets/images/splash-icon.png",
           "resizeMode": "contain",
-          "backgroundColor": "#F7F4EF"
+          "backgroundColor": "#ECDDBE"
         }
       ],
       [
@@ -66,7 +68,19 @@
           "isAccessMediaLocationEnabled": false
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-dev-client",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "17.0"
+          },
+          "android": {
+            "minSdkVersion": 24
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

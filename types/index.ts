@@ -20,6 +20,13 @@ export type Look = {
   createdAt: number;
 };
 
+export type PlannedDay = {
+  date: string; // YYYY-MM-DD local
+  lookId: string | null;
+  garmentIds: string[];
+  note?: string;
+};
+
 export type AppData = {
   onboardingComplete: boolean;
   likeness: Likeness;
@@ -27,4 +34,5 @@ export type AppData = {
   looks: Look[];
   selectedGarmentIds: string[];
   selectedMood: Mood;
+  plannedDays: PlannedDay[];
 };

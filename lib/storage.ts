@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 
-import type { AppData, Garment, Likeness, Look } from '@/types';
+import type { AppData, Garment, Likeness, Look, PlannedDay } from '@/types';
 import type { Mood } from '@/constants/theme';
 
 const STORAGE_KEY = 'drape_app_data_v1';
@@ -13,7 +13,31 @@ const defaultData: AppData = {
   looks: [],
   selectedGarmentIds: [],
   selectedMood: 'Clean',
+  plannedDays: [],
 };
+
+function sanitizePlannedDays(
+  plannedDays: PlannedDay[] | undefined,
+  garments: Garment[],
+  looks: Look[]
+): PlannedDay[] {
+  const garmentIds = new Set(garments.map((g) => g.id));
+  const lookIds = new Set(looks.map((l) => l.id));
+  const cleaned: PlannedDay[] = [];
+  for (const day of plannedDays ?? []) {
+    const lookId =
+      day.lookId && lookIds.has(day.lookId) ? day.lookId : null;
+    const ids = (day.garmentIds ?? []).filter((id) => garmentIds.has(id));
+    if (!lookId && ids.length === 0 && !day.note?.trim()) continue;
+    cleaned.push({
+      date: day.date,
+      lookId,
+      garmentIds: ids,
+      note: day.note?.trim() || undefined,
+    });
+  }
+  return cleaned;
+}
 
 function mediaDir(): string {
   return `${FileSystem.documentDirectory}drape/`;
@@ -46,14 +70,17 @@ export async function loadAppData(): Promise<AppData> {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...defaultData, likeness: { ...defaultData.likeness } };
     const parsed = JSON.parse(raw) as Partial<AppData>;
+    const garments = parsed.garments ?? [];
+    const looks = parsed.looks ?? [];
     return {
       ...defaultData,
       ...parsed,
       likeness: { ...defaultData.likeness, ...parsed.likeness },
-      garments: parsed.garments ?? [],
-      looks: parsed.looks ?? [],
+      garments,
+      looks,
       selectedGarmentIds: parsed.selectedGarmentIds ?? [],
       selectedMood: (parsed.selectedMood as Mood) ?? 'Clean',
+      plannedDays: sanitizePlannedDays(parsed.plannedDays, garments, looks),
     };
   } catch {
     return { ...defaultData, likeness: { ...defaultData.likeness } };
@@ -73,4 +100,4 @@ export async function updateAppData(
   return next;
 }
 
-export type { AppData, Garment, Likeness, Look };
+export type { AppData, Garment, Likeness, Look, PlannedDay };

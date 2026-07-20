@@ -57,6 +57,9 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="generating" options={{ gestureEnabled: false }} />
         <Stack.Screen name="result" />
+        <Stack.Screen name="plan-day" />
+        <Stack.Screen name="examples" />
+        <Stack.Screen name="profile" />
       </Stack>
     </AppProvider>
   );

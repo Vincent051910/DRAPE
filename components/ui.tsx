@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import {
   ActivityIndicator,
@@ -10,31 +11,44 @@ import {
   type TextProps,
   type ViewProps,
 } from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors, fonts, spacing } from '@/constants/theme';
+import { Atmosphere } from '@/components/Atmosphere';
+import { colors, fonts, radii, spacing } from '@/constants/theme';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+type IconName = keyof typeof Ionicons.glyphMap;
 
 export function Screen({
   children,
   style,
   padded = true,
+  atmosphere = true,
   ...rest
-}: ViewProps & { padded?: boolean }) {
+}: ViewProps & { padded?: boolean; atmosphere?: boolean }) {
   const insets = useSafeAreaInsets();
   return (
-    <View
-      style={[
-        styles.screen,
-        padded && {
-          paddingTop: insets.top + spacing.md,
-          paddingBottom: Math.max(insets.bottom, spacing.md),
-          paddingHorizontal: spacing.lg,
-        },
-        style,
-      ]}
-      {...rest}
-    >
-      {children}
+    <View style={styles.screen} {...rest}>
+      {atmosphere ? <Atmosphere /> : null}
+      <View
+        style={[
+          styles.screenInner,
+          padded && {
+            paddingTop: insets.top + spacing.md,
+            paddingBottom: Math.max(insets.bottom, spacing.md),
+            paddingHorizontal: spacing.lg,
+          },
+          style,
+        ]}
+      >
+        {children}
+      </View>
     </View>
   );
 }
@@ -52,7 +66,7 @@ export function BrandTitle({
           fontFamily: fonts.display,
           fontSize: size,
           color,
-          letterSpacing: 2,
+          letterSpacing: 2.5,
         },
         style,
       ]}
@@ -79,36 +93,114 @@ export function Body({ children, style, muted, ...rest }: TextProps & { muted?: 
   );
 }
 
+export function SectionLabel({ children, style, ...rest }: TextProps) {
+  return (
+    <Text style={[styles.sectionLabel, style]} {...rest}>
+      {children}
+    </Text>
+  );
+}
+
+export function AccentRule({ light = false }: { light?: boolean }) {
+  return <View style={[styles.accentRule, light && styles.accentRuleLight]} />;
+}
+
 export function PrimaryButton({
   label,
   onPress,
   disabled,
   loading,
+  icon,
   style,
 }: {
   label: string;
   loading?: boolean;
   onPress?: () => void;
   disabled?: boolean;
+  icon?: IconName;
   style?: PressableProps['style'];
 }) {
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
       disabled={disabled || loading}
+      onPressIn={() => {
+        if (!disabled) scale.value = withSpring(0.97, { damping: 18, stiffness: 320 });
+      }}
+      onPressOut={() => {
+        scale.value = withSpring(1, { damping: 16, stiffness: 260 });
+      }}
       style={(state) => [
-        styles.primaryBtn,
+        styles.primaryBtnWrap,
+        animStyle,
         (disabled || loading) && styles.primaryBtnDisabled,
-        state.pressed && !disabled && styles.pressed,
         typeof style === 'function' ? style(state) : style,
       ]}
     >
-      {loading ? (
-        <ActivityIndicator color={colors.ivory} />
-      ) : (
-        <Text style={styles.primaryBtnText}>{label}</Text>
-      )}
-    </Pressable>
+      <LinearGradient
+        colors={['#5A7049', colors.olive, '#3A4A32']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.primaryBtn}
+      >
+        {loading ? (
+          <ActivityIndicator color={colors.ivory} />
+        ) : (
+          <View style={styles.btnInner}>
+            {icon ? <Ionicons name={icon} size={20} color={colors.ivory} /> : null}
+            <Text style={styles.primaryBtnText}>{label}</Text>
+          </View>
+        )}
+      </LinearGradient>
+    </AnimatedPressable>
+  );
+}
+
+export function SecondaryButton({
+  label,
+  onPress,
+  disabled,
+  icon,
+  style,
+}: {
+  label: string;
+  onPress?: () => void;
+  disabled?: boolean;
+  icon?: IconName;
+  style?: PressableProps['style'];
+}) {
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <AnimatedPressable
+      onPress={onPress}
+      disabled={disabled}
+      onPressIn={() => {
+        if (!disabled) scale.value = withSpring(0.97, { damping: 18, stiffness: 320 });
+      }}
+      onPressOut={() => {
+        scale.value = withSpring(1, { damping: 16, stiffness: 260 });
+      }}
+      style={(state) => [
+        styles.secondaryBtn,
+        animStyle,
+        disabled && styles.primaryBtnDisabled,
+        typeof style === 'function' ? style(state) : style,
+      ]}
+    >
+      <View style={styles.btnInner}>
+        {icon ? <Ionicons name={icon} size={20} color={colors.olive} /> : null}
+        <Text style={styles.secondaryBtnText}>{label}</Text>
+      </View>
+    </AnimatedPressable>
   );
 }
 
@@ -149,7 +241,11 @@ export function IconButton({
   size?: number;
 }) {
   return (
-    <Pressable onPress={onPress} hitSlop={12} style={({ pressed }) => pressed && styles.pressed}>
+    <Pressable
+      onPress={onPress}
+      hitSlop={12}
+      style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}
+    >
       <Ionicons name={name} size={size} color={color} />
     </Pressable>
   );
@@ -164,11 +260,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.ivory,
   },
+  screenInner: {
+    flex: 1,
+  },
   heading: {
     fontFamily: fonts.display,
-    fontSize: 32,
+    fontSize: 34,
     color: colors.charcoal,
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
   body: {
     fontFamily: fonts.body,
@@ -179,22 +278,64 @@ const styles = StyleSheet.create({
   bodyMuted: {
     color: colors.stoneMuted,
   },
-  primaryBtn: {
+  sectionLabel: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: colors.stoneMuted,
+  },
+  accentRule: {
+    width: 40,
+    height: 1.5,
     backgroundColor: colors.olive,
-    paddingVertical: 16,
+    marginTop: spacing.sm,
+  },
+  accentRuleLight: {
+    backgroundColor: colors.ivory,
+  },
+  primaryBtnWrap: {
+    borderRadius: radii.md,
+    overflow: 'hidden',
+  },
+  primaryBtn: {
+    paddingVertical: 18,
     paddingHorizontal: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 54,
+    minHeight: 58,
   },
   primaryBtnDisabled: {
-    opacity: 0.45,
+    opacity: 0.4,
+  },
+  btnInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
   },
   primaryBtnText: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 16,
+    fontFamily: fonts.bodyBold,
+    fontSize: 17,
     color: colors.ivory,
-    letterSpacing: 0.4,
+    letterSpacing: 0.8,
+  },
+  secondaryBtn: {
+    paddingVertical: 17,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 56,
+    borderRadius: radii.md,
+    borderWidth: 1.5,
+    borderColor: colors.olive,
+    backgroundColor: 'rgba(74, 93, 62, 0.1)',
+  },
+  secondaryBtnText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 16,
+    color: colors.olive,
+    letterSpacing: 0.6,
   },
   ghostBtn: {
     paddingVertical: 14,
@@ -203,14 +344,22 @@ const styles = StyleSheet.create({
   ghostBtnText: {
     fontFamily: fonts.bodyMedium,
     fontSize: 15,
-    color: colors.charcoal,
+    letterSpacing: 0.3,
+  },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.oliveSoft,
   },
   pressed: {
-    opacity: 0.7,
+    opacity: 0.72,
   },
   hairline: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.stone,
+    backgroundColor: colors.mist,
     width: '100%',
   },
 });

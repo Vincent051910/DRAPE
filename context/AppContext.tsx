@@ -10,10 +10,16 @@ import { ActivityIndicator, View } from 'react-native';
 
 import { colors } from '@/constants/theme';
 import type { GarmentCategory, Mood } from '@/constants/theme';
-import { cutoutGarment } from '@/lib/cutoutGarment';
+import { cutoutClothes } from '@/lib/cutoutClothes';
 import { createId } from '@/lib/id';
 import { loadAppData, persistImage, saveAppData } from '@/lib/storage';
-import type { AppData, Garment, Look } from '@/types';
+import type { AppData, Garment, Look, PlannedDay } from '@/types';
+
+export type DayPlanInput = {
+  lookId?: string | null;
+  garmentIds?: string[];
+  note?: string;
+};
 
 type AppContextValue = {
   ready: boolean;
@@ -27,10 +33,30 @@ type AppContextValue = {
   clearGarmentSelection: () => Promise<void>;
   saveLook: (look: Omit<Look, 'id' | 'createdAt'> & { id?: string }) => Promise<Look>;
   removeLook: (id: string) => Promise<void>;
+  getDayPlan: (date: string) => PlannedDay | undefined;
+  setDayPlan: (date: string, plan: DayPlanInput) => Promise<void>;
+  clearDayPlan: (date: string) => Promise<void>;
   likenessReady: boolean;
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
+
+function scrubPlans(
+  plannedDays: PlannedDay[],
+  garments: Garment[],
+  looks: Look[]
+): PlannedDay[] {
+  const garmentIds = new Set(garments.map((g) => g.id));
+  const lookIds = new Set(looks.map((l) => l.id));
+  const cleaned: PlannedDay[] = [];
+  for (const day of plannedDays) {
+    const lookId = day.lookId && lookIds.has(day.lookId) ? day.lookId : null;
+    const ids = day.garmentIds.filter((id) => garmentIds.has(id));
+    if (!lookId && ids.length === 0 && !day.note?.trim()) continue;
+    cleaned.push({ ...day, lookId, garmentIds: ids });
+  }
+  return cleaned;
+}
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
@@ -56,7 +82,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setLikenessPhoto = useCallback(
     async (kind: 'body' | 'face', uri: string) => {
       if (!data) return;
-      const saved = await persistImage(uri, `${kind}_${createId(kind)}`);
+      // Body + head use native cutout. Head keeps trim off so the neck stays.
+      const result = await cutoutClothes(uri, {
+        trim: kind === 'face' ? false : true,
+      });
+      const saved = await persistImage(
+        result.uri,
+        `${kind}_${createId(kind)}`,
+        result.cutout ? { ext: 'png' } : undefined
+      );
       await commit({
         ...data,
         likeness: {
@@ -72,13 +106,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     async (uri: string, category: GarmentCategory) => {
       if (!data) return;
       const id = createId('garment');
-      let source = uri;
-      try {
-        source = await cutoutGarment(uri);
-      } catch {
-        // Keep the original photo if cutout fails.
-      }
-      const saved = await persistImage(source, id, { ext: 'png' });
+      const { uri: source, cutout } = await cutoutClothes(uri);
+      const saved = await persistImage(source, id, cutout ? { ext: 'png' } : undefined);
       const garment: Garment = {
         id,
         uri: saved,
@@ -93,10 +122,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const removeGarment = useCallback(
     async (id: string) => {
       if (!data) return;
+      const garments = data.garments.filter((g) => g.id !== id);
       await commit({
         ...data,
-        garments: data.garments.filter((g) => g.id !== id),
+        garments,
         selectedGarmentIds: data.selectedGarmentIds.filter((gid) => gid !== id),
+        plannedDays: scrubPlans(data.plannedDays, garments, data.looks),
       });
     },
     [commit, data]
@@ -146,7 +177,62 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const removeLook = useCallback(
     async (id: string) => {
       if (!data) return;
-      await commit({ ...data, looks: data.looks.filter((l) => l.id !== id) });
+      const looks = data.looks.filter((l) => l.id !== id);
+      await commit({
+        ...data,
+        looks,
+        plannedDays: scrubPlans(data.plannedDays, data.garments, looks),
+      });
+    },
+    [commit, data]
+  );
+
+  const getDayPlan = useCallback(
+    (date: string) => data?.plannedDays.find((d) => d.date === date),
+    [data]
+  );
+
+  const setDayPlan = useCallback(
+    async (date: string, plan: DayPlanInput) => {
+      if (!data) return;
+      const lookId = plan.lookId === undefined ? undefined : plan.lookId;
+      const garmentIds = plan.garmentIds;
+      const note = plan.note;
+
+      const existing = data.plannedDays.find((d) => d.date === date);
+      const nextDay: PlannedDay = {
+        date,
+        lookId:
+          lookId !== undefined
+            ? lookId
+            : (existing?.lookId ?? null),
+        garmentIds: garmentIds ?? existing?.garmentIds ?? [],
+        note: note !== undefined ? note.trim() || undefined : existing?.note,
+      };
+
+      const empty =
+        !nextDay.lookId &&
+        nextDay.garmentIds.length === 0 &&
+        !nextDay.note;
+
+      const others = data.plannedDays.filter((d) => d.date !== date);
+      await commit({
+        ...data,
+        plannedDays: empty
+          ? others
+          : scrubPlans([nextDay, ...others], data.garments, data.looks),
+      });
+    },
+    [commit, data]
+  );
+
+  const clearDayPlan = useCallback(
+    async (date: string) => {
+      if (!data) return;
+      await commit({
+        ...data,
+        plannedDays: data.plannedDays.filter((d) => d.date !== date),
+      });
     },
     [commit, data]
   );
@@ -167,6 +253,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       clearGarmentSelection,
       saveLook,
       removeLook,
+      getDayPlan,
+      setDayPlan,
+      clearDayPlan,
       likenessReady,
     };
   }, [
@@ -181,6 +270,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     clearGarmentSelection,
     saveLook,
     removeLook,
+    getDayPlan,
+    setDayPlan,
+    clearDayPlan,
     likenessReady,
   ]);
 

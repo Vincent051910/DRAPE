@@ -12,21 +12,32 @@ export type GenerateInput = {
 };
 
 export type GenerateResult =
-  | { ok: true; uri: string; source: 'ai' | 'collage' }
+  | { ok: true; uri: string; source: 'ai' }
   | { ok: false; reason: 'missing_key' | 'missing_assets' | 'api_error'; message: string };
 
-const MODEL = 'gemini-2.0-flash-preview-image-generation';
+/** Native image model used for try-on (Nano Banana / Flash Image). */
+const MODEL = 'gemini-2.5-flash-image';
+
+function getApiKey(): string {
+  return (process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '')
+    .trim()
+    .replace(/^['"]|['"]$/g, '');
+}
 
 export function hasApiKey(): boolean {
-  const key = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-  return Boolean(key && key.trim().length > 0);
+  return getApiKey().length > 0;
 }
 
 async function uriToBase64(uri: string): Promise<{ mimeType: string; data: string }> {
   const data = await FileSystem.readAsStringAsync(uri, {
     encoding: FileSystem.EncodingType.Base64,
   });
-  const mimeType = uri.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+  const lower = uri.toLowerCase();
+  const mimeType = lower.includes('.png')
+    ? 'image/png'
+    : lower.includes('.webp')
+      ? 'image/webp'
+      : 'image/jpeg';
   return { mimeType, data };
 }
 
@@ -43,8 +54,53 @@ function buildPrompt(mood: Mood, garmentCount: number): string {
   ].join(' ');
 }
 
+function parseGeminiError(status: number, errText: string): string {
+  let message = errText;
+  let retryHint: string | undefined;
+  try {
+    const json = JSON.parse(errText) as {
+      error?: {
+        message?: string;
+        details?: Array<{
+          '@type'?: string;
+          retryDelay?: string;
+          violations?: Array<{ quotaValue?: string; quotaMetric?: string }>;
+        }>;
+      };
+    };
+    message = json.error?.message ?? errText;
+    for (const detail of json.error?.details ?? []) {
+      if (detail.retryDelay) retryHint = detail.retryDelay;
+      const zeroQuota = detail.violations?.some(
+        (v) => v.quotaValue === '0' || v.quotaValue === '0'
+      );
+      if (zeroQuota || /limit:\s*0/i.test(message)) {
+        return [
+          'Gemini image quota is 0 for this project/key (common on free tier for image models).',
+          'Open AI Studio → Rate limits / Billing, enable billing or use a project with image quota,',
+          'then create a new API key and restart Expo.',
+          'https://aistudio.google.com/rate-limit',
+        ].join(' ');
+      }
+    }
+  } catch {
+    // keep raw text
+  }
+
+  if (status === 429) {
+    return [
+      'Gemini rate/quota limit (429).',
+      retryHint ? `Retry after ~${retryHint}.` : 'Wait a minute and try again.',
+      'Image models often have a separate (sometimes zero) free quota from text models.',
+      message.slice(0, 180),
+    ].join(' ');
+  }
+
+  return `Gemini error ${status}: ${message.slice(0, 280)}`;
+}
+
 async function callGemini(input: GenerateInput): Promise<string> {
-  const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY?.trim();
+  const apiKey = getApiKey();
   if (!apiKey) {
     throw new Error('Missing API key');
   }
@@ -53,24 +109,28 @@ async function callGemini(input: GenerateInput): Promise<string> {
   const face = await uriToBase64(input.faceUri);
   const garments = await Promise.all(input.garmentUris.map(uriToBase64));
 
+  // Prefer camelCase (current REST style); keep payloads small where possible.
   const parts: Array<Record<string, unknown>> = [
     { text: buildPrompt(input.mood, garments.length) },
     { text: 'Full-body reference:' },
-    { inline_data: { mime_type: body.mimeType, data: body.data } },
+    { inlineData: { mimeType: body.mimeType, data: body.data } },
     { text: 'Face reference:' },
-    { inline_data: { mime_type: face.mimeType, data: face.data } },
+    { inlineData: { mimeType: face.mimeType, data: face.data } },
   ];
 
   garments.forEach((g, i) => {
     parts.push({ text: `Garment ${i + 1}:` });
-    parts.push({ inline_data: { mime_type: g.mimeType, data: g.data } });
+    parts.push({ inlineData: { mimeType: g.mimeType, data: g.data } });
   });
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
   const response = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey,
+    },
     body: JSON.stringify({
       contents: [{ role: 'user', parts }],
       generationConfig: {
@@ -81,7 +141,7 @@ async function callGemini(input: GenerateInput): Promise<string> {
 
   if (!response.ok) {
     const errText = await response.text();
-    throw new Error(`Gemini error ${response.status}: ${errText.slice(0, 280)}`);
+    throw new Error(parseGeminiError(response.status, errText));
   }
 
   const json = (await response.json()) as {
@@ -116,17 +176,7 @@ async function callGemini(input: GenerateInput): Promise<string> {
   throw new Error('No image returned from Gemini');
 }
 
-/** Local collage fallback when AI is unavailable — layered preview, not a true try-on. */
-async function buildCollagePreview(input: GenerateInput): Promise<string> {
-  // Persist body as the "result" so the flow still completes offline/demo.
-  // Real try-on requires the API; this keeps the UX unbroken.
-  return persistImage(input.bodyUri, createId('collage'));
-}
-
-export async function generateLook(
-  input: GenerateInput,
-  options?: { allowCollageFallback?: boolean }
-): Promise<GenerateResult> {
+export async function generateLook(input: GenerateInput): Promise<GenerateResult> {
   if (!input.bodyUri || !input.faceUri) {
     return {
       ok: false,
@@ -143,10 +193,6 @@ export async function generateLook(
   }
 
   if (!hasApiKey()) {
-    if (options?.allowCollageFallback) {
-      const uri = await buildCollagePreview(input);
-      return { ok: true, uri, source: 'collage' };
-    }
     return {
       ok: false,
       reason: 'missing_key',
@@ -160,10 +206,6 @@ export async function generateLook(
     return { ok: true, uri, source: 'ai' };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Generation failed';
-    if (options?.allowCollageFallback) {
-      const uri = await buildCollagePreview(input);
-      return { ok: true, uri, source: 'collage' };
-    }
     return { ok: false, reason: 'api_error', message };
   }
 }

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { Platform } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 
 import { colors, fonts } from '@/constants/theme';
 
@@ -13,15 +13,16 @@ export default function TabLayout() {
         tabBarInactiveTintColor: colors.stoneMuted,
         tabBarStyle: {
           backgroundColor: colors.ivory,
-          borderTopColor: colors.stone,
-          borderTopWidth: StyleSheetHairline,
+          borderTopColor: colors.mist,
+          borderTopWidth: StyleSheet.hairlineWidth,
           height: Platform.OS === 'ios' ? 88 : 64,
-          paddingTop: 8,
+          paddingTop: 6,
         },
         tabBarLabelStyle: {
           fontFamily: fonts.bodyMedium,
-          fontSize: 11,
-          letterSpacing: 0.2,
+          fontSize: 10,
+          letterSpacing: 0.4,
+          textTransform: 'uppercase',
         },
       }}
     >
@@ -53,6 +54,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="plan"
+        options={{
+          title: 'Plan',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="calendar-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="looks"
         options={{
           title: 'Looks',
@@ -64,5 +74,3 @@ export default function TabLayout() {
     </Tabs>
   );
 }
-
-const StyleSheetHairline = 0.5;

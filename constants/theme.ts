@@ -1,7 +1,10 @@
 export const colors = {
   ivory: '#F7F4EF',
+  linen: '#EFEBE4',
+  mist: '#E4DFD6',
   charcoal: '#1A1A18',
   olive: '#4A5D3E',
+  oliveSoft: 'rgba(74, 93, 62, 0.12)',
   stone: '#C8C2B8',
   stoneMuted: '#A39E94',
   white: '#FFFFFF',
@@ -24,6 +27,12 @@ export const spacing = {
   lg: 24,
   xl: 32,
   xxl: 48,
+} as const;
+
+export const radii = {
+  sm: 2,
+  md: 4,
+  lg: 8,
 } as const;
 
 export const moods = ['Clean', 'Editorial', 'Street', 'Evening'] as const;

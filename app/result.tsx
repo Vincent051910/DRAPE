@@ -6,17 +6,21 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Body, BrandTitle, GhostButton, IconButton, PrimaryButton } from '@/components/ui';
+import { getExampleById } from '@/constants/examples';
 import { colors, fonts, spacing } from '@/constants/theme';
 
 export default function ResultScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { uri, mood, source } = useLocalSearchParams<{
+  const { uri, mood, source, exampleId } = useLocalSearchParams<{
     uri: string;
     lookId?: string;
     mood?: string;
     source?: string;
+    exampleId?: string;
   }>();
+
+  const example = exampleId ? getExampleById(exampleId) : undefined;
 
   const onShare = async () => {
     if (!uri) return;
@@ -50,7 +54,11 @@ export default function ResultScreen() {
 
   return (
     <View style={styles.root}>
-      <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      <Image
+        source={{ uri }}
+        style={StyleSheet.absoluteFill}
+        resizeMode={source === 'example' ? 'contain' : 'cover'}
+      />
 
       <Animated.View
         entering={FadeIn.duration(500)}
@@ -63,16 +71,39 @@ export default function ResultScreen() {
 
       <View style={[styles.bottom, { paddingBottom: insets.bottom + spacing.md }]}>
         {source === 'collage' ? (
-          <Body style={styles.note}>Collage preview · add an API key for AI try-on</Body>
+          <Body style={styles.note}>
+            Collage · {mood ? `${mood} · ` : ''}body, face & selected pieces
+          </Body>
+        ) : source === 'example' ? (
+          <View style={styles.exampleMeta}>
+            <Body style={styles.note}>
+              {example?.title ?? 'Example'} · {mood ?? ''} · full body
+            </Body>
+            {example?.pieces.map((piece) => (
+              <Body key={piece} style={styles.pieceLine}>
+                · {piece}
+              </Body>
+            ))}
+          </View>
         ) : mood ? (
           <Body style={styles.note}>{mood}</Body>
         ) : null}
         <View style={styles.actions}>
-          <PrimaryButton label="Save" onPress={onSave} style={styles.half} />
+          {source === 'example' ? (
+            <PrimaryButton
+              label="Compose your look"
+              onPress={() => router.replace('/(tabs)/create')}
+              style={styles.half}
+            />
+          ) : (
+            <PrimaryButton label="Save" onPress={onSave} style={styles.half} />
+          )}
           <GhostButton
-            label="New look"
+            label={source === 'example' ? 'More examples' : 'New look'}
             textColor={colors.ivory}
-            onPress={() => router.replace('/(tabs)/create')}
+            onPress={() =>
+              router.replace(source === 'example' ? '/examples' : '/(tabs)/create')
+            }
             style={[styles.half, styles.newLook]}
           />
         </View>
@@ -107,13 +138,23 @@ const styles = StyleSheet.create({
     zIndex: 2,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    backgroundColor: 'rgba(26,26,24,0.55)',
+    backgroundColor: 'rgba(26,26,24,0.62)',
     gap: spacing.sm,
+  },
+  exampleMeta: {
+    gap: 2,
+    marginBottom: spacing.xs,
   },
   note: {
     color: colors.ivory,
     fontFamily: fonts.bodyMedium,
     fontSize: 13,
+    textAlign: 'center',
+  },
+  pieceLine: {
+    color: 'rgba(247,244,239,0.88)',
+    fontFamily: fonts.body,
+    fontSize: 12,
     textAlign: 'center',
   },
   actions: {
